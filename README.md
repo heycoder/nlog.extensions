@@ -26,26 +26,25 @@ senderrorcount|	邮件中发送的异常个数，例如maxerrorcount=10，sender
 <nlog xmlns="http://www.nlog-project.org/schemas/NLog.xsd"
       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <extensions>
-    <add assembly="Ppd.NLog" />
+    <add assembly="HeyCoder.NLog.Extensions" />
   </extensions>
   <targets>
     
     <target name="email"
-        type="PpdEmail"
-        appname="测试程序"
-        host="127.0.0.1"
-        port="25"
-        displayname="测试告警"
-        username="username"
-        password="password"
-        from="mail@corp.ppdai.com"
-        to="you@ppdai.com"
-        maxerrorcount="1000"
-        senderrorcount="100"
-        expiredtime="100000"
-        ishtml="true"
-        layout="${shortdate} ${time} | ${message}"
-    />
+            type="Email"
+            appname="测试程序"
+            host="smtp.163.com"
+            port="25"
+            displayname="测试告警"
+            username="test@163.com"
+            password="password"
+            from="test@163.com"
+            to="to@163.com"
+            maxerrorcount="10"
+            senderrorcount="1"
+            expiredtime="100000"
+            layout="${shortdate} ${time} | ${message}"
+            />
   </targets>
   <rules>
     <logger name="*" minLevel="Error" appendTo="email"/>
