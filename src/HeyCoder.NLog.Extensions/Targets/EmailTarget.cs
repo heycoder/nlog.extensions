@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Linq;
 using NLog;
 using NLog.Config;
@@ -44,6 +45,8 @@ namespace HeyCoder.NLog.Extensions.Targets
 
         public int ExpiredTime { get; set; } = 5 * 60 * 1000;
 
+        public string InternalErrorFile { get; set; }
+
         public string SplitString
         {
             get { return IsHtml ? "<hr/>" : "\r\n"; }
@@ -51,48 +54,50 @@ namespace HeyCoder.NLog.Extensions.Targets
 
         protected override void Write(LogEventInfo logEvent)
         {
-            string logMessage = this.Layout.Render(logEvent);
-            var stackTraceInfo = StackTraceUtil.GetStackTrace();
-            var key = string.Format("{0}-{1}-{2}", stackTraceInfo.ClassName,
-                stackTraceInfo.MethodName,
-                stackTraceInfo.FileLineNumber);
-            var messageBag = GetMessageBag(key);
-            messageBag.AppendMessage(logMessage);
-            if (messageBag.NeedSend(MaxErrorCount, ExpiredTime))
+            try
             {
-                lock (messageBag)
+                string logMessage = this.Layout.Render(logEvent);
+                var stackTraceInfo = StackTraceUtil.GetStackTrace();
+                var key = string.Format("{0}-{1}-{2}", stackTraceInfo.ClassName,
+                    stackTraceInfo.MethodName,
+                    stackTraceInfo.FileLineNumber);
+                var messageBag = GetMessageBag(key);
+                messageBag.AppendMessage(logMessage);
+                if (messageBag.NeedSend(MaxErrorCount, ExpiredTime))
                 {
-                    if (messageBag.NeedSend(MaxErrorCount, ExpiredTime))
+                    lock (messageBag)
                     {
-                        messageBag.SendMessage(key, SendErrorCount, SplitString, SendTheMessageToRemoteHost);
+                        if (messageBag.NeedSend(MaxErrorCount, ExpiredTime))
+                        {
+                            messageBag.SendMessage(key, SendErrorCount, SplitString, SendTheMessageToRemoteHost);
+                        }
                     }
-                }
 
+                }
+            }
+            catch (Exception e)
+            {
+                if (!string.IsNullOrWhiteSpace(InternalErrorFile))
+                {
+                    File.AppendAllText(InternalErrorFile, e + "\r\n");
+                }
             }
         }
 
         private bool SendTheMessageToRemoteHost(string logKey, string message)
         {
-            try
+            MailUtil.SendEmail(new SendMail
             {
-                MailUtil.SendEmail(new SendMail
-                {
-                    Host = this.Host,
-                    UserName = this.UserName,
-                    Password = this.Password,
-                    FromMailAddress = this.From,
-                    DisplayName = this.DisplayName ?? this.UserName,
-                    Subject = string.Format("【{0}】{1}-{2}-告警", HostUtil.GetHostIp(), AppName, logKey),
-                    Body = message,
-                    IsBodyHtml = IsHtml,
-                    ToMailAddressList = To.Split(',').ToList()
-                });
-            }
-            catch (Exception ex)
-            {
-                return false;
-            }
-
+                Host = this.Host,
+                UserName = this.UserName,
+                Password = this.Password,
+                FromMailAddress = this.From,
+                DisplayName = this.DisplayName ?? this.UserName,
+                Subject = string.Format("【{0}】{1}-{2}-告警", HostUtil.GetHostIp(), AppName, logKey),
+                Body = message,
+                IsBodyHtml = IsHtml,
+                ToMailAddressList = To.Split(',').ToList()
+            });
             return true;
         }
 
